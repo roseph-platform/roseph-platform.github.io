@@ -1,0 +1,40 @@
+Prostate data info
+
+The data for this example come from a study by Stamey et al. (1989). Theyexamined the correlation between the level of prostate-specific antigen anda number of clinical measures in men who were about to receive a radicalprostatectomy. 
+
+The variables are 
+
+log cancer volume (lcavol), 
+log prostate weight (lweight), 
+age, 
+log of the amount of benign prostatic hyperplasia (lbph), 
+seminal vesicle invasion (svi), 
+log of capsular penetration (lcp),Gleason score (gleason), and 
+percent of Gleason scores 4 or 5 (pgg45).
+
+
+Predictors (columns 1--8)
+
+lcavol
+lweight
+age
+lbph
+svi
+lcp
+gleason
+pgg45
+
+outcome (column 9)
+
+lpsa
+
+train/test indicator (column 10)
+
+This last column indicates which 67 observations were used as the 
+"training set" and which 30 as the test set, as described on page 48
+in the book.
+
+The features must first be scaled to have mean zero and unit variance 96 (=n)
+before the analyses in Tables 3.1 and beyond.  That is, if x is the  96 by 8 matrix
+of features, we compute xp <- scale(x,TRUE,TRUE)
+
