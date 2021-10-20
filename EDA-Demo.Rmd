@@ -1,0 +1,271 @@
+---
+title: "Demonstrate Statistical Learning and Data Science by R Markdown"
+author: "Xinwei Deng (xdeng@vt.edu), Virginia Tech"
+date: "`r Sys.Date()`"
+header-includes: 
+   - \usepackage{amsmath,bm,bbm,amssymb,mathrsfs}
+   - \usepackage{amsthm,amscd,float}             
+   - \usepackage{graphicx, multirow, graphics}
+   - \usepackage{comment}
+output: html_document
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+* R Markdown is a powerful intergation of R and techchnical writing.
+* It can produce a useful report for data analytics with informative elaboration.
+* It is also very convenient to incorport the Latex math writing.
+    - For example, assume that we like to generate the iid sample from the multivariate normal distribution $X \sim N(\mu, \Sigma)$. 
+    - We can also call the latex package to create equation, table and figures.
+
+```{r, eval=TRUE, echo = TRUE}
+library(MASS)
+n = 1000
+p = 5
+mu = rep(0,p)
+
+rho = -0.5
+Sigma_mat = diag(rep(1,p));
+for( j in 1: (p-1) )
+{
+	Sigma_mat[j,j+1] = rho;
+	Sigma_mat[j+1,j] = rho;	
+}
+
+Data = mvrnorm(n, mu, Sigma_mat);
+plot(Data[,1],Data[,2], xlab = "x1", ylab = "y")
+```
+
+From the above plot, one can see the shape of the normal distribution. 
+
+## Model Estimation 
+
+* The R markdown can also be used to condut the data analysis and show the model estimation results. 
+* For example, one can consider the linear model as
+    \begin{align}
+    Y = \beta_{0} + \beta_{1} X+\epsilon,
+    \end{align}
+where $\epsilon$ is the error terms following the zero-mean normal distribution $N(0,\sigma^{2})$.
+```{r, eval=TRUE, echo = TRUE}
+y = Data[,2]
+x1 = Data[,1]
+x2 = Data[,3]
+x3 = Data[,4]
+x4 = Data[,5]
+
+mod1 = lm(y~x1);
+mod1
+summary(mod1);
+```
+It is seen that the estimated slope $\hat{\beta}$ is `r mod1$coef[2]`, which is very close to $-0.5$.
+
+The linear model is called linear in terms of $\beta$.
+    \begin{align}
+    Y = \beta_{0} + \sum_{j-=1}^{p} \beta_{j} x_{j} +\epsilon,
+    \end{align}
+    
+```{r, eval=TRUE, echo = TRUE}
+mod2 = lm(y~x1+x2+x3+x4);
+summary(mod2);
+```
+Based on the course material, it is known that
+    \begin{align}
+    E(y|\mathbf{x}) = \mathbf{x}'\Sigma_{xx}^{-1}\Sigma_{xy} = -\mathbf{x}' \frac{\Omega_{xy}}{\Omega_{yy}} .
+    \end{align}
+where $\Omega$ is the inverse of the covaraince matrix $\Sigma$.
+```{r, eval=TRUE, echo = TRUE}
+XY_data = cbind(x1,x2,x3,x4,y);
+
+Omega_mat = solve(cov(XY_data))
+Omega_xy = Omega_mat[1:4,5]
+Omega_yy = Omega_mat[5,5]
+
+beta_hat = -Omega_xy/Omega_yy
+print(beta_hat)
+```
+The above analysis shows that the values of estimated coefficient $\hat{\beta}$ is the same as the second row in the inverse covariance matrix of $\Sigma$.
+
+## Data and Model Visualization
+
+* The R Shiny can also be incorporated into the R markdown to dynamically elaborate the data analysis. 
+For example, we can run the following code.
+```{r}
+library(shiny)
+
+# Define UI, the user interface ----
+ui <- fluidPage(
+  ## Put a title here:
+  titlePanel("Data (Teach.csv) Table"),
+  
+  sidebarLayout(
+    
+    sidebarPanel(
+      
+      ## Place the widget here:
+      numericInput(inputId = "num", label = "number of observations to display:",
+                   value = 6, min = 0, max = 90, step = 1)
+    ),
+    
+    ## Specify the table output here:
+    mainPanel(tableOutput(outputId = "df"))
+    )
+  )
+
+# Define server logic ----
+server <- function(input, output)
+  {
+  
+  ## Grab the data
+  df <- read.table("teach.csv",
+                   sep = ",", header = TRUE)
+  df$degree <- as.factor(df$degree)
+  
+  ## Generate the dataset with user specified number of rows.
+  ## Notice it is in a reactive() function. 
+  dat <- reactive({
+    return(df[1:input$num, ])
+  }) 
+  
+  ## Create the output of a table:
+  output$df <- renderTable(dat())
+  }
+
+# Run the app ----
+shinyApp(ui = ui, server = server)
+```
+We can see that for the R Shiny there are two key components:
+
+* The ${\bf ui}$ component: it plays the functionality of structure design
+* The ${\bf server}$ component: it decides what to be conducted in the `ui` function.
+
+Now we can show another example for elaborating the model fitting.
+
+```{r}
+library(shiny)
+library(ggplot2)
+library(MASS)
+options(stringsAsFactors = FALSE)
+
+# Define UI ----
+ui <- fluidPage(
+  titlePanel("Teach.csv Example"),
+  sidebarLayout(
+    sidebarPanel(
+        checkboxInput(inputId = "smooth", label = "Fit Regression"),
+        ## Only until smooth is checkboxed, will the method dropdown appear
+        ## A conditional panel is a 'widget' with a condition specified.
+        conditionalPanel(
+            condition = "input.smooth == true",
+            selectInput(inputId = "smoothMethod", label = "Method",
+                        list("lm", "glm", "gam", "loess", "rlm"))
+            )
+        ),
+    mainPanel(plotOutput(outputId = "plot"))))
+
+# Define server logic ----
+server <- function(input, output){
+  df <- read.table("teach.csv",
+                   sep = ",", header = TRUE)
+  
+  # Using ggplot to draw the scatter plot and regression line.
+  ## One plot puts a regression line, and other is just a scatterplot.
+  output$plot <- renderPlot({
+      if(input$smooth){
+          ggplot(data = df) +
+              geom_jitter(mapping = aes(x = months, y = salary)) +
+              # geom_smooth(mapping = aes(x = months, y = salary)) +
+              geom_smooth(mapping = aes(x = months, y = salary),
+                          method = input$smoothMethod) +
+              xlab("Month") +
+              ylab("Salary") +
+              ggtitle("Salary Versus Months")
+      } else{
+          ggplot(data = df) +
+              geom_jitter(mapping = aes(x = months, y = salary)) +
+              xlab("Month") +
+              ylab("Salary") +
+              ggtitle("Salary Versus Months")
+      }
+  })
+}
+# Run the app ----
+shinyApp(ui = ui, server = server)
+```
+One can also easily obtain the residual plot to evaluate the model assumptions. For example, we consider the linear model with $Y$ to be salary, and the other variables to be predictor varaibles $x_{1}, \ldots, x_{p}$.
+
+```{r}
+library(broom)
+library(ggplot2)
+# fit the data
+Tdata <- read.table("teach.csv", sep = ",", header = TRUE)
+mod3 = lm(salary~months+sex+marry+degree+type+train+brk, data = Tdata)
+summary(mod3)
+
+# Define UI ----
+ui <- fluidPage(
+  
+  titlePanel("Residual Analysis"),
+  sidebarLayout(
+    
+    sidebarPanel(),
+      
+    mainPanel = (
+      tabsetPanel(
+        # tabset for different plots
+        tabPanel("Residual Plot", plotOutput(outputId = "residplot")), 
+        tabPanel("Histogram", plotOutput(outputId = "histplot")),
+        tabPanel("QQ Plot", plotOutput(outputId = "qqplot"))
+      )
+    ),
+    )
+  
+ )
+
+# Define server logic ----
+server <- function(input, output) {
+  
+  # residual plot
+  output$residplot <- renderPlot({
+    df <- augment(mod3)
+    ggplot(data = df) + 
+      geom_jitter(mapping = aes(x = .fitted, y = .resid)) +
+      geom_abline(intercept = 0, slope = 0) +
+      ggtitle("Residuals Versus Fitted") +
+      xlab("Fitted") +
+      ylab("Residuals")
+
+  })
+  # histogram of residuals
+  output$histplot <- renderPlot({
+    df <- augment(mod3)
+    ggplot(data = df) + 
+      geom_histogram(mapping = aes(x = .resid), bins = 50) +
+      ggtitle("Histogram of Residuals") +
+      xlab("Residuals")
+  })
+  # qqplot for normality check
+  output$qqplot <- renderPlot({
+    df <- augment(mod3)
+    ggplot(data = df) +
+      stat_qq(mapping = aes(sample = .resid)) +
+      ggtitle("Normal QQ Plot") +
+      ylab("Standardized Residuals") +
+      xlab("Theoretical Quantiles")
+  })
+  
+}
+# Run the app ----
+shinyApp(ui = ui, server = server)
+```
+In a short summary, the R markdown is useful for technical writing, with a good integration of data analytics and data visiualization. 
+
+
+
+
+    
+
+
+
